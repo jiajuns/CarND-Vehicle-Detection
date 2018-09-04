@@ -28,14 +28,19 @@ Steps of this project
 
 Histogram of Oriented Gradients (HOG)
 ---
-The code for this step is contained in the second code cell of the IPython notebook.
-
 Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
 ![alt text][image0]
 ![alt text][image1]
 
 I has explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
+
+```python
+features, hog_img = hog(img, orientations=orient,
+                        pixels_per_cell=(pix_per_cell, pix_per_cell),
+                        cells_per_block=(cell_per_block, cell_per_block),
+                        visualise=vis, feature_vector=feature_vec)
+```
 
 Here is an example using the `YCrCb` color space and HOG parameters of `orientations=9`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
 
@@ -46,6 +51,13 @@ I tried various combinations of parameters and find with `orientation = 11` and 
 SVM classifier
 ---
 I trained a linear SVM using HOG features, spatial features and color histogram. In order to optimize the classifier I use grid search cross validation to tune the hyperparameter and decide to use `C=0.01`.
+
+```python
+parameters = {'kernel':['linear'], 'C':[0.01, 0.1, 1, 10]}
+svc = svm.SVC()
+clf = GridSearchCV(svc, parameters, cv=4, n_jobs=8)
+clf.fit(X_train, y_train)
+```
 
 Sliding Window Search
 ---
@@ -67,7 +79,34 @@ Here's a [link to my video result](./output_video_final.mp4)
 
 I recorded the positions of positive detections in each frame of the video.  From the positive detections, I add up the positive detections found in the previous several frames. Then use the previous step heatmap times a decay rate and add up with current heatmap to generate a smoothed heatmap. After that threshold on the smooth heatmap to identify vehicle positions. 
 
+```python
+def add_heat(heatmap, bbox_list):
+    '''Iterate through list of bboxes'''
+    for box in bbox_list:
+        # Add += 1 for all pixels inside each bbox
+        # Assuming each "box" takes the form ((x1, y1), (x2, y2))
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+    # Return updated heatmap
+    return heatmap
+
+def apply_threshold(heatmap, threshold):
+    output = np.copy(heatmap)
+    output[output <= threshold] = 0
+    return output
+
+heatmap = np.zeros_like(img[:,:,0]).astype(np.float)
+heatmap = add_heat(heatmap, bbox_list)
+filtered_heatmap = apply_threshold(heatmap, 1)
+```
+
 I use `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  Then assume each blob corresponds to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.
+
+```python
+from scipy.ndimage.measurements import label
+
+car_labels = label(filtered_heatmap)
+```
 
 Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
 
